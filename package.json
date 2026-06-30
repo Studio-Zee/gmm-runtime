@@ -1,0 +1,12 @@
+{
+  "name": "gmm-runtime",
+  "version": "1.0.0",
+  "description": "Motor de execução do Godot Multiplayer Manager",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}

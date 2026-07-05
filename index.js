@@ -73,6 +73,30 @@ app.post('/api/v1/deploy', (req, res) => {
     }
 });
 
+app.get('/api/v1/server/:id/status', (req, res) => {
+    const serverId = req.params.id;
+    if (runningServers[serverId]) {
+        res.json({ online: true, status: 'running' });
+    } else {
+        res.json({ online: false, status: 'offline' });
+    }
+});
+
+app.post('/api/v1/server/:id/action', (req, res) => {
+    const serverId = req.params.id;
+    const { action } = req.body; 
+
+    if (runningServers[serverId]) {
+        if (action === 'stop' || action === 'restart') {
+            runningServers[serverId].kill();
+            delete runningServers[serverId];
+            console.log(`[!] Servidor ${serverId} parado via App.`);
+        }
+    }
+    
+    res.json({ success: true, message: `Ação ${action} executada` });
+});
+
 const PORT = 9090;
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`GMM Runtime rodando na porta ${PORT} | MODO: ${EXECUTION_MODE}`);

@@ -7,7 +7,7 @@ const app = express();
 app.use(express.json());
 
 const runningServers = {};
-const serverLogs = {}; // Guarda os logs na memória pro App puxar
+const serverLogs = {}; 
 
 const EXECUTION_MODE = process.env.EXECUTION_MODE || 'local';
 
@@ -16,9 +16,9 @@ app.post('/api/v1/deploy', (req, res) => {
 
     if (EXECUTION_MODE === 'local') {
         try {
-            console.log(`Recebendo ordem do App...`);
-            console.log(`ID do Servidor: ${serverId}`);
-            console.log(`URL do Template: ${zipUrl}`);
+            const shortId = serverId.slice(-4); 
+            
+            console.log(`\n> [Instalação] Iniciando deploy do projeto (${shortId})...`);
             
             serverLogs[serverId] = []; 
             
@@ -29,63 +29,56 @@ app.post('/api/v1/deploy', (req, res) => {
             if (fs.existsSync(serverPath)) fs.rmSync(serverPath, { recursive: true, force: true });
             fs.mkdirSync(serverPath, { recursive: true });
 
-            console.log(`Baixando template e instalando dependências...`);
-            console.log(`ISSO PODE DEMORAR ALGUNS MINUTOS NO CELULAR. AGUARDE...`);
+            console.log(`> [Instalação] Baixando arquivos e dependências. Aguarde...`);
 
             const setupCommand = `curl -sL "${zipUrl}" -o template.zip && unzip -q -o template.zip && npm install`;
             
             exec(setupCommand, { cwd: serverPath }, (error, stdout, stderr) => {
-                // SE DER ERRO, AGORA ELE MOSTRA NA TELA:
                 if (error) {
-                    console.error(`\n[ERRO CRÍTICO NO SETUP]`);
+                    console.error(`\n> [ERRO] Falha no processo:`);
                     console.error(error.message);
-                    console.error(stderr);
-                    return res.status(500).json({ error: "Falha ao preparar os arquivos. Veja o terminal." });
+                    return res.status(500).json({ error: "Falha ao preparar os arquivos." });
                 }
 
-                console.log(`Download e Instalação concluídos!`);
+                console.log(`> [Instalação] Arquivos prontos.`);
 
                 if (runningServers[serverId]) {
-                    console.log(`Derrubando processo antigo...`);
                     runningServers[serverId].kill();
                 }
 
                 const processEnv = { ...process.env, ...envVars, PORT: '8080' };
                 
-                console.log(`Ligando o servidor do jogo...`);
+                console.log(`> [Sistema] Servidor online!`);
                 const child = spawn('node', ['server.js'], { cwd: serverPath, env: processEnv });
 
                 runningServers[serverId] = child;
 
-                // CAPTURA OS LOGS DO JOGO E MOSTRA NO TERMUX E NO APP
                 child.stdout.on('data', (data) => {
                     const msg = data.toString().trim();
-                    console.log(`[${serverId}] ${msg}`);
+                    console.log(`[SV-${shortId}] ${msg}`); 
                     serverLogs[serverId].push(msg);
                     if (serverLogs[serverId].length > 100) serverLogs[serverId].shift();
                 });
                 
                 child.stderr.on('data', (data) => {
                     const msg = data.toString().trim();
-                    console.error(`[${serverId} ERRO] ${msg}`);
+                    console.error(`[SV-${shortId} ERRO] ${msg}`);
                     serverLogs[serverId].push(`[ERRO] ${msg}`);
                 });
 
                 child.on('close', (code) => {
-                    console.log(`[${serverId} Status] Desligado (Código ${code})`);
+                    console.log(`> [Sistema] Servidor (${shortId}) desligado.`);
                     delete runningServers[serverId];
                 });
 
                 return res.status(200).json({ message: "Servidor iniciado com sucesso!" });
             });
         } catch (err) {
-            console.error("[Erro Fatal]", err);
             return res.status(500).json({ error: err.message });
         }
     }
 });
 
-// 1. Rota de Status (Pro App ficar Verde/Online)
 app.get('/api/v1/server/:id/status', (req, res) => {
     const serverId = req.params.id;
     if (runningServers[serverId]) {
@@ -95,13 +88,11 @@ app.get('/api/v1/server/:id/status', (req, res) => {
     }
 });
 
-// 2. Rota de Logs (Pro App pegar o texto do terminal)
 app.get('/api/v1/server/:id/logs', (req, res) => {
     const serverId = req.params.id;
     res.json({ logs: serverLogs[serverId] || [] });
 });
 
-// 3. Rota de Ação (Parar/Reiniciar)
 app.post('/api/v1/server/:id/action', (req, res) => {
     const serverId = req.params.id;
     const { action } = req.body; 
@@ -110,7 +101,6 @@ app.post('/api/v1/server/:id/action', (req, res) => {
         if (action === 'stop' || action === 'restart') {
             runningServers[serverId].kill();
             delete runningServers[serverId];
-            console.log(`[!] Servidor ${serverId} parado via App.`);
         }
     }
     res.json({ success: true, message: `Ação ${action} executada` });
@@ -118,5 +108,5 @@ app.post('/api/v1/server/:id/action', (req, res) => {
 
 const PORT = 9090;
 app.listen(PORT, '0.0.0.0', () => {
-    console.log(`GMM Runtime rodando na porta ${PORT} | MODO: ${EXECUTION_MODE}`);
+    console.log(`\nGMM Motor de Execução\n> Status: ONLINE (Porta ${PORT})\n> Modo: Local (Termux/PC)\n`);
 });
